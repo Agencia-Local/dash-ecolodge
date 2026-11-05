@@ -213,16 +213,6 @@ body {
   color: var(--text-muted);
 }
 
-.link-btn {
-  border: none;
-  background: none;
-  color: var(--brand);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-}
-
 .chart-wrap {
   position: relative;
   margin-top: 8px;
@@ -245,37 +235,6 @@ body {
   border-radius: 8px;
   transform: translate(-50%, -100%);
   white-space: nowrap;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-  margin-top: 16px;
-  font-size: 13px;
-}
-
-.data-table th:first-child,
-.data-table td:first-child {
-  width: 70%;
-}
-
-.data-table th:last-child,
-.data-table td:last-child {
-  width: 30%;
-}
-
-.data-table th,
-.data-table td {
-  text-align: left;
-  padding: 6px 4px;
-  border-bottom: 1px solid var(--gridline);
-}
-
-.data-table td:last-child,
-.data-table th:last-child {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 .bar-list {

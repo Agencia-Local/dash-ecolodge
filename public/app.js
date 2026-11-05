@@ -7,9 +7,6 @@ const periodoEl = document.getElementById('periodoLabel');
 const chartEl = document.getElementById('lineChart');
 const chartWrapEl = chartEl.closest('.chart-wrap');
 const tooltipEl = document.getElementById('chartTooltip');
-const tableEl = document.getElementById('dataTable');
-const tableBodyEl = document.getElementById('dataTableBody');
-const toggleTableBtn = document.getElementById('toggleTable');
 const canalListEl = document.getElementById('canalList');
 const origemListEl = document.getElementById('origemList');
 const origemSubEl = document.getElementById('origemSub');
@@ -39,13 +36,6 @@ document.querySelectorAll('.pill').forEach((btn) => {
 applyCustomBtn.addEventListener('click', () => {
   if (!fromInput.value || !toInput.value) return;
   load({ range: 'custom', from: fromInput.value, to: toInput.value });
-});
-
-toggleTableBtn.addEventListener('click', () => {
-  const showingTable = !tableEl.hidden;
-  tableEl.hidden = showingTable;
-  chartWrapEl.hidden = !showingTable;
-  toggleTableBtn.textContent = showingTable ? 'Ver tabela' : 'Ver gráfico';
 });
 
 load({ range: currentRange });
@@ -79,7 +69,6 @@ function renderResumo(data) {
   periodoEl.textContent = formatPeriodo(data.from, data.to);
 
   renderChart(data.porDia);
-  renderTable(data.porDia);
   renderBarList(canalListEl, data.porCanal, 'Nenhuma reserva com canal registrado no período.');
 
   if (data.origemInformada === 0) {
@@ -155,12 +144,6 @@ function showTooltip(evt, point) {
 
 function hideTooltip() {
   tooltipEl.hidden = true;
-}
-
-function renderTable(porDia) {
-  tableBodyEl.innerHTML = porDia
-    .map((d) => `<tr><td>${formatShortDate(d.date)}</td><td>${d.total}</td></tr>`)
-    .join('');
 }
 
 function renderBarList(container, items, emptyMessage) {

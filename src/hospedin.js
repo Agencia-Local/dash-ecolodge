@@ -62,10 +62,14 @@ async function listSaleChannels() {
   return new Map(data.map((c) => [c.id, c.attributes.name]));
 }
 
-function extractLeadSource(note) {
-  if (!note) return null;
+function extractLeadSources(note) {
+  if (!note) return [];
   const match = note.match(LEAD_SOURCE_REGEX);
-  return match ? match[1].trim() : null;
+  if (!match) return [];
+  return match[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 function* eachDay(fromStr, toStr) {
@@ -113,10 +117,12 @@ async function getReservasResumo(fromStr, toStr) {
       const channelName = channelId != null ? (channelNameById.get(String(channelId)) ?? 'Outro') : 'Direto';
       porCanalMap.set(channelName, (porCanalMap.get(channelName) ?? 0) + 1);
 
-      const origem = extractLeadSource(booking.attributes.note);
-      if (origem) {
+      const origens = extractLeadSources(booking.attributes.note);
+      if (origens.length) {
         origemInformada += 1;
-        porOrigemMap.set(origem, (porOrigemMap.get(origem) ?? 0) + 1);
+        for (const origem of origens) {
+          porOrigemMap.set(origem, (porOrigemMap.get(origem) ?? 0) + 1);
+        }
       }
     }
   });
