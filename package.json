@@ -1,0 +1,16 @@
+{
+  "name": "dash-ecolodge",
+  "version": "1.0.0",
+  "description": "Dashboard do Ecolodge Praia de Gravata, alimentado pela API do Hospedin",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node --env-file=.env --use-system-ca index.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "express": "^5.3.0"
+  }
+}

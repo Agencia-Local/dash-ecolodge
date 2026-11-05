@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard de Reservas — Eco Lodge Praia de Gravatá</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <img class="logo" src="/assets/logo-eco-lodge.png" alt="Eco Lodge Praia de Gravatá" />
+      <div>
+        <h1>Dashboard de Reservas</h1>
+        <p class="date" id="todayLabel"></p>
+      </div>
+    </header>
+
+    <div class="filters">
+      <button class="pill" data-range="hoje">Hoje</button>
+      <button class="pill" data-range="7dias">7 dias</button>
+      <button class="pill active" data-range="mes">Este mês</button>
+      <button class="pill" data-range="custom">Personalizado</button>
+      <div class="custom-range" id="customRange" hidden>
+        <input type="date" id="fromInput" />
+        <span>até</span>
+        <input type="date" id="toInput" />
+        <button id="applyCustom">Aplicar</button>
+      </div>
+    </div>
+
+    <section class="hero-card">
+      <span class="hero-label">RESERVAS</span>
+      <span class="hero-value" id="totalReservas">—</span>
+      <span class="hero-sub" id="periodoLabel"></span>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <h2>Reservas por dia</h2>
+        <button class="link-btn" id="toggleTable">Ver tabela</button>
+      </div>
+      <div class="chart-wrap">
+        <svg id="lineChart" viewBox="0 0 700 220" preserveAspectRatio="none"></svg>
+        <div class="tooltip" id="chartTooltip" hidden></div>
+      </div>
+      <table class="data-table" id="dataTable" hidden>
+        <thead>
+          <tr><th>Data</th><th>Reservas</th></tr>
+        </thead>
+        <tbody id="dataTableBody"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>De onde vêm as reservas</h2>
+      <p class="card-sub">Canal de venda registrado no Hospedin.</p>
+      <div class="bar-list" id="canalList"></div>
+    </section>
+
+    <section class="card">
+      <h2>Como conheceram o Eco Lodge</h2>
+      <p class="card-sub" id="origemSub">
+        Extraído das observações da reserva — só aparece para hóspedes que responderam essa pergunta no check-in.
+      </p>
+      <div class="bar-list" id="origemList"></div>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
