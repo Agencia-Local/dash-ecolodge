@@ -245,7 +245,7 @@ body {
 
 .bar-row {
   display: grid;
-  grid-template-columns: 140px 1fr 32px;
+  grid-template-columns: 200px 1fr 32px;
   align-items: center;
   gap: 10px;
   font-size: 13px;
@@ -253,9 +253,7 @@ body {
 
 .bar-row .bar-name {
   color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
 }
 
 .bar-track {
@@ -291,6 +289,6 @@ body {
 
 @media (max-width: 520px) {
   .bar-row {
-    grid-template-columns: 96px 1fr 28px;
+    grid-template-columns: 140px 1fr 28px;
   }
 }
