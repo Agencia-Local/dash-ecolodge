@@ -4,10 +4,16 @@ const MAX_BAR_SLOTS = 6;
 const todayLabelEl = document.getElementById('todayLabel');
 const totalEl = document.getElementById('totalReservas');
 const periodoEl = document.getElementById('periodoLabel');
+const totalCanceladosEl = document.getElementById('totalCancelados');
+const canceladosSubEl = document.getElementById('canceladosSub');
+const totalDiariasReaisEl = document.getElementById('totalDiariasReais');
+const diariasSubEl = document.getElementById('diariasSub');
 const chartEl = document.getElementById('lineChart');
 const chartWrapEl = chartEl.closest('.chart-wrap');
 const tooltipEl = document.getElementById('chartTooltip');
 const canalListEl = document.getElementById('canalList');
+const regiaoListEl = document.getElementById('regiaoList');
+const regiaoSubEl = document.getElementById('regiaoSub');
 const origemListEl = document.getElementById('origemList');
 const origemSubEl = document.getElementById('origemSub');
 const customRangeEl = document.getElementById('customRange');
@@ -43,7 +49,10 @@ load({ range: currentRange });
 async function load(params) {
   totalEl.textContent = '…';
   periodoEl.textContent = 'Carregando…';
+  totalCanceladosEl.textContent = '…';
+  totalDiariasReaisEl.textContent = '…';
   clearNode(canalListEl);
+  clearNode(regiaoListEl);
   clearNode(origemListEl);
 
   const query = new URLSearchParams(params).toString();
@@ -68,8 +77,24 @@ function renderResumo(data) {
   totalEl.textContent = data.total;
   periodoEl.textContent = formatPeriodo(data.from, data.to);
 
+  const tentativas = data.total + data.totalCancelados;
+  totalCanceladosEl.textContent = data.totalCancelados;
+  canceladosSubEl.textContent =
+    tentativas > 0 ? `${Math.round((data.totalCancelados / tentativas) * 100)}% das tentativas no período` : 'Sem reservas no período';
+
+  totalDiariasReaisEl.textContent = formatCurrency(data.totalDiariasReais);
+  diariasSubEl.textContent = `${formatNights(data.totalDiarias)} vendida(s) no período`;
+
   renderChart(data.porDia);
   renderBarList(canalListEl, data.porCanal, 'Nenhuma reserva com canal registrado no período.');
+
+  if (data.regiaoInformada === 0) {
+    regiaoSubEl.textContent = 'Nenhum hóspede do período tem cidade cadastrada — o bloco aparece vazio até haver dado.';
+    renderBarList(regiaoListEl, [], 'Sem dados de cidade no período.');
+  } else {
+    regiaoSubEl.textContent = `Cidade informada no cadastro do hóspede — disponível em ${data.regiaoInformada} de ${data.total} reserva(s).`;
+    renderBarList(regiaoListEl, data.porRegiao, 'Sem dados de cidade no período.', 'Outras cidades');
+  }
 
   if (data.origemInformada === 0) {
     origemSubEl.textContent =
@@ -79,6 +104,15 @@ function renderResumo(data) {
     origemSubEl.textContent = `Extraído das observações da reserva — resposta disponível em ${data.origemInformada} de ${data.total} reserva(s).`;
     renderBarList(origemListEl, data.porOrigem, 'Sem dados de origem no período.');
   }
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+}
+
+function formatNights(nights) {
+  const rounded = Math.round(nights);
+  return `${rounded} ${rounded === 1 ? 'diária' : 'diárias'}`;
 }
 
 function formatPeriodo(from, to) {
@@ -97,14 +131,13 @@ function renderChart(porDia) {
   const plotW = WIDTH - PAD_L - PAD_R;
   const plotH = HEIGHT - PAD_T - PAD_B;
 
-  const values = porDia.map((d) => d.total);
-  const maxVal = Math.max(1, ...values);
+  const maxVal = Math.max(1, ...porDia.flatMap((d) => [d.total, d.cancelados]));
   const n = porDia.length;
 
   const xAt = (i) => (n === 1 ? WIDTH / 2 : PAD_L + (i * plotW) / (n - 1));
   const yAt = (v) => PAD_T + plotH * (1 - v / maxVal);
 
-  const linePoints = porDia.map((d, i) => `${xAt(i)},${yAt(d.total)}`).join(' ');
+  const linePoints = (key) => porDia.map((d, i) => `${xAt(i)},${yAt(d[key])}`).join(' ');
   const baselineY = yAt(0);
 
   const labelEvery = Math.max(1, Math.ceil(n / 7));
@@ -112,13 +145,14 @@ function renderChart(porDia) {
   let svg = '';
   svg += `<line x1="${PAD_L}" y1="${baselineY}" x2="${WIDTH - PAD_R}" y2="${baselineY}" stroke="var(--baseline)" stroke-width="1" />`;
   if (n > 1) {
-    svg += `<polyline points="${linePoints}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />`;
+    svg += `<polyline points="${linePoints('cancelados')}" fill="none" stroke="var(--cat-7)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />`;
+    svg += `<polyline points="${linePoints('total')}" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />`;
   }
 
   porDia.forEach((d, i) => {
     const x = xAt(i);
-    const y = yAt(d.total);
-    svg += `<circle data-index="${i}" cx="${x}" cy="${y}" r="4" fill="var(--brand)" stroke="var(--surface-1)" stroke-width="2" style="cursor:pointer" />`;
+    svg += `<circle data-index="${i}" cx="${x}" cy="${yAt(d.cancelados)}" r="4" fill="var(--cat-7)" stroke="var(--surface-1)" stroke-width="2" style="cursor:pointer" />`;
+    svg += `<circle data-index="${i}" cx="${x}" cy="${yAt(d.total)}" r="4" fill="var(--brand)" stroke="var(--surface-1)" stroke-width="2" style="cursor:pointer" />`;
     if (i % labelEvery === 0 || i === n - 1) {
       svg += `<text x="${x}" y="${HEIGHT - 6}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${formatShortDate(d.date)}</text>`;
     }
@@ -139,14 +173,14 @@ function showTooltip(evt, point) {
   tooltipEl.hidden = false;
   tooltipEl.style.left = `${targetRect.left - wrapRect.left + targetRect.width / 2}px`;
   tooltipEl.style.top = `${targetRect.top - wrapRect.top - 8}px`;
-  tooltipEl.textContent = `${formatShortDate(point.date)} · ${point.total} reserva(s)`;
+  tooltipEl.textContent = `${formatShortDate(point.date)} · ${point.total} reserva(s) · ${point.cancelados} cancelada(s)`;
 }
 
 function hideTooltip() {
   tooltipEl.hidden = true;
 }
 
-function renderBarList(container, items, emptyMessage) {
+function renderBarList(container, items, emptyMessage, otherLabel = 'Outras respostas') {
   clearNode(container);
 
   if (!items.length) {
@@ -160,7 +194,7 @@ function renderBarList(container, items, emptyMessage) {
   const top = items.slice(0, MAX_BAR_SLOTS);
   const rest = items.slice(MAX_BAR_SLOTS);
   const restTotal = rest.reduce((sum, item) => sum + item.count, 0);
-  const rows = restTotal > 0 ? [...top, { name: 'Outras respostas', count: restTotal, isOther: true }] : top;
+  const rows = restTotal > 0 ? [...top, { name: otherLabel, count: restTotal, isOther: true }] : top;
 
   const maxCount = Math.max(...rows.map((r) => r.count));
 

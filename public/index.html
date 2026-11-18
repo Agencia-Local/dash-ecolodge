@@ -29,15 +29,31 @@
       </div>
     </div>
 
-    <section class="hero-card">
-      <span class="hero-label">RESERVAS</span>
-      <span class="hero-value" id="totalReservas">—</span>
-      <span class="hero-sub" id="periodoLabel"></span>
-    </section>
+    <div class="stats-row">
+      <section class="hero-card">
+        <span class="hero-label">RESERVAS</span>
+        <span class="hero-value" id="totalReservas">—</span>
+        <span class="hero-sub" id="periodoLabel"></span>
+      </section>
+      <section class="hero-card hero-card--compact">
+        <span class="hero-label">CANCELAMENTOS</span>
+        <span class="hero-value" id="totalCancelados">—</span>
+        <span class="hero-sub" id="canceladosSub"></span>
+      </section>
+      <section class="hero-card hero-card--compact">
+        <span class="hero-label">DIÁRIAS VENDIDAS</span>
+        <span class="hero-value" id="totalDiariasReais">—</span>
+        <span class="hero-sub" id="diariasSub"></span>
+      </section>
+    </div>
 
     <section class="card">
       <div class="card-header">
         <h2>Reservas por dia</h2>
+      </div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-swatch legend-swatch--reservas"></span>Reservas</span>
+        <span class="legend-item"><span class="legend-swatch legend-swatch--cancelados"></span>Canceladas</span>
       </div>
       <div class="chart-wrap">
         <svg id="lineChart" viewBox="0 0 700 220" preserveAspectRatio="none"></svg>
@@ -49,6 +65,12 @@
       <h2>De onde vêm as reservas</h2>
       <p class="card-sub">Canal de venda registrado no Hospedin.</p>
       <div class="bar-list" id="canalList"></div>
+    </section>
+
+    <section class="card">
+      <h2>De onde vêm os hóspedes</h2>
+      <p class="card-sub" id="regiaoSub">Cidade informada no cadastro do hóspede.</p>
+      <div class="bar-list" id="regiaoList"></div>
     </section>
 
     <section class="card">

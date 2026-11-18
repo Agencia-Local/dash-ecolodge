@@ -1,5 +1,6 @@
 const BASE_URL = 'https://pms.hospedin.com';
-const STATUSES_CONTADOS = 'pre_reservation,reservation,waitlist,check_in,cleaning,check_out,no_show';
+const STATUSES_CONTADOS = ['pre_reservation', 'reservation', 'waitlist', 'check_in', 'cleaning', 'check_out', 'no_show'];
+const STATUS_CANCELADO = 'canceled';
 const LEAD_SOURCE_REGEX = /Como conheceu[^?]*\?:\s*([^\n]+)/i;
 
 let cachedToken = null;
@@ -48,18 +49,53 @@ async function fetchAllPages(path, params) {
   return items;
 }
 
-async function bookingsCreatedOnDay(dateStr) {
+async function bookingsOnDay(dateStr) {
   return fetchAllPages('/api/v3/bookings', {
     'page[size]': '100',
     'filter[created_at][gte]': `${dateStr}T00:00:00-03:00`,
     'filter[created_at][lte]': `${dateStr}T23:59:59-03:00`,
-    'filter[status]': STATUSES_CONTADOS,
   });
 }
 
 async function listSaleChannels() {
   const data = await fetchAllPages('/api/v3/channels', { 'page[size]': '100' });
   return new Map(data.map((c) => [c.id, c.attributes.name]));
+}
+
+function bookingStatus(booking) {
+  return booking.attributes.units?.[0]?.status ?? null;
+}
+
+function bookingNights(booking) {
+  return (booking.attributes.units || []).reduce((sum, unit) => {
+    const nights = (new Date(unit.check_out) - new Date(unit.check_in)) / 86_400_000;
+    return sum + (Number.isFinite(nights) && nights > 0 ? nights : 0);
+  }, 0);
+}
+
+function bookingDiariasCents(booking) {
+  return (booking.attributes.units || []).reduce((sum, unit) => sum + (unit.total_daily_cents || 0), 0);
+}
+
+function guestCity(guest) {
+  const city = guest?.attributes?.contact?.city;
+  if (!city) return null;
+  const trimmed = city.trim();
+  return trimmed.length > 1 ? trimmed : null;
+}
+
+async function listGuestCities(guestIds) {
+  const uniqueIds = [...new Set(guestIds.filter((id) => id != null))];
+  const token = await getToken();
+  const entries = await mapWithConcurrency(uniqueIds, 5, async (id) => {
+    const res = await fetch(`${BASE_URL}/api/v3/guests/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [id, null];
+    const body = await res.json();
+    return [id, guestCity(body.data)];
+  });
+  return new Map(entries);
 }
 
 function extractLeadSources(note) {
@@ -98,34 +134,72 @@ async function getReservasResumo(fromStr, toStr) {
   const days = [...eachDay(fromStr, toStr)];
   const [channelNameById, perDayBookings] = await Promise.all([
     listSaleChannels(),
-    mapWithConcurrency(days, 5, bookingsCreatedOnDay),
+    mapWithConcurrency(days, 5, bookingsOnDay),
   ]);
 
   const porDia = [];
   const porCanalMap = new Map();
   const porOrigemMap = new Map();
+  const porRegiaoMap = new Map();
   let total = 0;
+  let totalCancelados = 0;
+  let totalDiarias = 0;
+  let totalDiariasCents = 0;
   let origemInformada = 0;
+  let regiaoInformada = 0;
+
+  const activeByDay = [];
 
   days.forEach((day, i) => {
     const bookings = perDayBookings[i];
-    porDia.push({ date: day, total: bookings.length });
-    total += bookings.length;
+    let activeCount = 0;
+    let canceladosCount = 0;
+    const active = [];
 
     for (const booking of bookings) {
-      const channelId = booking.attributes.sale_channel_id;
-      const channelName = channelId != null ? (channelNameById.get(String(channelId)) ?? 'Outro') : 'Direto';
-      porCanalMap.set(channelName, (porCanalMap.get(channelName) ?? 0) + 1);
+      const status = bookingStatus(booking);
+      if (status === STATUS_CANCELADO) {
+        canceladosCount += 1;
+        continue;
+      }
+      if (!STATUSES_CONTADOS.includes(status)) continue;
+      activeCount += 1;
+      active.push(booking);
+    }
 
-      const origens = extractLeadSources(booking.attributes.note);
-      if (origens.length) {
-        origemInformada += 1;
-        for (const origem of origens) {
-          porOrigemMap.set(origem, (porOrigemMap.get(origem) ?? 0) + 1);
-        }
+    porDia.push({ date: day, total: activeCount, cancelados: canceladosCount });
+    total += activeCount;
+    totalCancelados += canceladosCount;
+    activeByDay.push(active);
+  });
+
+  const allActive = activeByDay.flat();
+
+  for (const booking of allActive) {
+    const channelId = booking.attributes.sale_channel_id;
+    const channelName = channelId != null ? (channelNameById.get(String(channelId)) ?? 'Outro') : 'Direto';
+    porCanalMap.set(channelName, (porCanalMap.get(channelName) ?? 0) + 1);
+
+    const origens = extractLeadSources(booking.attributes.note);
+    if (origens.length) {
+      origemInformada += 1;
+      for (const origem of origens) {
+        porOrigemMap.set(origem, (porOrigemMap.get(origem) ?? 0) + 1);
       }
     }
-  });
+
+    totalDiarias += bookingNights(booking);
+    totalDiariasCents += bookingDiariasCents(booking);
+  }
+
+  const cityByGuestId = await listGuestCities(allActive.map((b) => b.attributes.guest_id));
+  for (const booking of allActive) {
+    const city = cityByGuestId.get(booking.attributes.guest_id);
+    if (city) {
+      regiaoInformada += 1;
+      porRegiaoMap.set(city, (porRegiaoMap.get(city) ?? 0) + 1);
+    }
+  }
 
   const toSortedList = (map) =>
     [...map.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
@@ -134,10 +208,15 @@ async function getReservasResumo(fromStr, toStr) {
     from: fromStr,
     to: toStr,
     total,
+    totalCancelados,
+    totalDiarias,
+    totalDiariasReais: totalDiariasCents / 100,
     porDia,
     porCanal: toSortedList(porCanalMap),
     porOrigem: toSortedList(porOrigemMap),
     origemInformada,
+    porRegiao: toSortedList(porRegiaoMap),
+    regiaoInformada,
   };
 }
 
