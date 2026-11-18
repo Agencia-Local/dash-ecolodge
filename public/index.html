@@ -68,7 +68,13 @@
     </section>
 
     <section class="card">
-      <h2>De onde vêm os hóspedes</h2>
+      <div class="card-header">
+        <h2>De onde vêm os hóspedes</h2>
+        <div class="toggle-group" id="regiaoToggle">
+          <button class="toggle-btn active" data-tipo="cidade">Cidade</button>
+          <button class="toggle-btn" data-tipo="estado">Estado</button>
+        </div>
+      </div>
       <p class="card-sub" id="regiaoSub">Cidade informada no cadastro do hóspede.</p>
       <div class="bar-list" id="regiaoList"></div>
     </section>

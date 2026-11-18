@@ -14,6 +14,7 @@ const tooltipEl = document.getElementById('chartTooltip');
 const canalListEl = document.getElementById('canalList');
 const regiaoListEl = document.getElementById('regiaoList');
 const regiaoSubEl = document.getElementById('regiaoSub');
+const regiaoToggleEl = document.getElementById('regiaoToggle');
 const origemListEl = document.getElementById('origemList');
 const origemSubEl = document.getElementById('origemSub');
 const customRangeEl = document.getElementById('customRange');
@@ -22,6 +23,17 @@ const toInput = document.getElementById('toInput');
 const applyCustomBtn = document.getElementById('applyCustom');
 
 let currentRange = 'mes';
+let currentRegiaoTipo = 'cidade';
+let lastData = null;
+
+regiaoToggleEl.addEventListener('click', (evt) => {
+  const btn = evt.target.closest('.toggle-btn');
+  if (!btn || btn.classList.contains('active')) return;
+  regiaoToggleEl.querySelectorAll('.toggle-btn').forEach((b) => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentRegiaoTipo = btn.dataset.tipo;
+  if (lastData) renderRegiao(lastData);
+});
 
 todayLabelEl.textContent = capitalize(
   new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
@@ -74,6 +86,7 @@ async function load(params) {
 }
 
 function renderResumo(data) {
+  lastData = data;
   totalEl.textContent = data.total;
   periodoEl.textContent = formatPeriodo(data.from, data.to);
 
@@ -88,13 +101,7 @@ function renderResumo(data) {
   renderChart(data.porDia);
   renderBarList(canalListEl, data.porCanal, 'Nenhuma reserva com canal registrado no período.');
 
-  if (data.regiaoInformada === 0) {
-    regiaoSubEl.textContent = 'Nenhum hóspede do período tem cidade cadastrada — o bloco aparece vazio até haver dado.';
-    renderBarList(regiaoListEl, [], 'Sem dados de cidade no período.');
-  } else {
-    regiaoSubEl.textContent = `Cidade informada no cadastro do hóspede — disponível em ${data.regiaoInformada} de ${data.total} reserva(s).`;
-    renderBarList(regiaoListEl, data.porRegiao, 'Sem dados de cidade no período.', 'Outras cidades');
-  }
+  renderRegiao(data);
 
   if (data.origemInformada === 0) {
     origemSubEl.textContent =
@@ -103,6 +110,24 @@ function renderResumo(data) {
   } else {
     origemSubEl.textContent = `Extraído das observações da reserva — resposta disponível em ${data.origemInformada} de ${data.total} reserva(s).`;
     renderBarList(origemListEl, data.porOrigem, 'Sem dados de origem no período.');
+  }
+}
+
+function renderRegiao(data) {
+  const isEstado = currentRegiaoTipo === 'estado';
+  const items = isEstado ? data.porEstado : data.porRegiao;
+  const informada = isEstado ? data.estadoInformada : data.regiaoInformada;
+
+  if (informada === 0) {
+    regiaoSubEl.textContent = isEstado
+      ? 'Nenhum hóspede do período tem cidade cadastrada para deduzir o estado — o bloco aparece vazio até haver dado.'
+      : 'Nenhum hóspede do período tem cidade cadastrada — o bloco aparece vazio até haver dado.';
+    renderBarList(regiaoListEl, [], `Sem dados de ${isEstado ? 'estado' : 'cidade'} no período.`);
+  } else {
+    regiaoSubEl.textContent = isEstado
+      ? `Estado deduzido a partir da cidade informada no cadastro do hóspede — disponível em ${informada} de ${data.total} reserva(s).`
+      : `Cidade informada no cadastro do hóspede — disponível em ${informada} de ${data.total} reserva(s).`;
+    renderBarList(regiaoListEl, items, `Sem dados de ${isEstado ? 'estado' : 'cidade'} no período.`, isEstado ? 'Outros estados' : 'Outras cidades');
   }
 }
 

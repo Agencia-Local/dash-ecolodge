@@ -1,10 +1,44 @@
 const BASE_URL = 'https://pms.hospedin.com';
+const IBGE_MUNICIPIOS_URL = 'https://servicodados.ibge.gov.br/api/v1/localidades/municipios';
 const STATUSES_CONTADOS = ['pre_reservation', 'reservation', 'waitlist', 'check_in', 'cleaning', 'check_out', 'no_show'];
 const STATUS_CANCELADO = 'canceled';
 const LEAD_SOURCE_REGEX = /Como conheceu[^?]*\?:\s*([^\n]+)/i;
+const MUNICIPIO_UF_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
+
+let cachedMunicipioUfMap = null;
+let cachedMunicipioUfMapAt = 0;
+
+function normalizeCityName(name) {
+  return name
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+async function getMunicipioUfMap() {
+  const now = Date.now();
+  if (cachedMunicipioUfMap && now < cachedMunicipioUfMapAt + MUNICIPIO_UF_CACHE_TTL_MS) {
+    return cachedMunicipioUfMap;
+  }
+  const res = await fetch(IBGE_MUNICIPIOS_URL);
+  if (!res.ok) {
+    throw new Error(`IBGE municipios -> ${res.status}`);
+  }
+  const municipios = await res.json();
+  const map = new Map();
+  for (const m of municipios) {
+    const uf = m?.microrregiao?.mesorregiao?.UF?.sigla;
+    if (!uf || !m?.nome) continue;
+    map.set(normalizeCityName(m.nome), uf);
+  }
+  cachedMunicipioUfMap = map;
+  cachedMunicipioUfMapAt = now;
+  return map;
+}
 
 async function getToken() {
   const now = Date.now();
@@ -77,23 +111,30 @@ function bookingDiariasCents(booking) {
   return (booking.attributes.units || []).reduce((sum, unit) => sum + (unit.total_daily_cents || 0), 0);
 }
 
-function guestCity(guest) {
-  const city = guest?.attributes?.contact?.city;
-  if (!city) return null;
-  const trimmed = city.trim();
+function cleanField(value) {
+  if (!value) return null;
+  const trimmed = value.trim();
   return trimmed.length > 1 ? trimmed : null;
 }
 
-async function listGuestCities(guestIds) {
+function guestLocation(guest) {
+  const contact = guest?.attributes?.contact;
+  return {
+    city: cleanField(contact?.city),
+    state: cleanField(contact?.state),
+  };
+}
+
+async function listGuestLocations(guestIds) {
   const uniqueIds = [...new Set(guestIds.filter((id) => id != null))];
   const token = await getToken();
   const entries = await mapWithConcurrency(uniqueIds, 5, async (id) => {
     const res = await fetch(`${BASE_URL}/api/v3/guests/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return [id, null];
+    if (!res.ok) return [id, { city: null, state: null }];
     const body = await res.json();
-    return [id, guestCity(body.data)];
+    return [id, guestLocation(body.data)];
   });
   return new Map(entries);
 }
@@ -141,12 +182,14 @@ async function getReservasResumo(fromStr, toStr) {
   const porCanalMap = new Map();
   const porOrigemMap = new Map();
   const porRegiaoMap = new Map();
+  const porEstadoMap = new Map();
   let total = 0;
   let totalCancelados = 0;
   let totalDiarias = 0;
   let totalDiariasCents = 0;
   let origemInformada = 0;
   let regiaoInformada = 0;
+  let estadoInformada = 0;
 
   const activeByDay = [];
 
@@ -192,12 +235,26 @@ async function getReservasResumo(fromStr, toStr) {
     totalDiariasCents += bookingDiariasCents(booking);
   }
 
-  const cityByGuestId = await listGuestCities(allActive.map((b) => b.attributes.guest_id));
+  let municipioUfMap = null;
+  try {
+    municipioUfMap = await getMunicipioUfMap();
+  } catch (err) {
+    console.error('Falha ao carregar municipios do IBGE, usando so o campo estado bruto:', err);
+  }
+
+  const locationByGuestId = await listGuestLocations(allActive.map((b) => b.attributes.guest_id));
   for (const booking of allActive) {
-    const city = cityByGuestId.get(booking.attributes.guest_id);
-    if (city) {
+    const location = locationByGuestId.get(booking.attributes.guest_id);
+    if (location?.city) {
       regiaoInformada += 1;
-      porRegiaoMap.set(city, (porRegiaoMap.get(city) ?? 0) + 1);
+      porRegiaoMap.set(location.city, (porRegiaoMap.get(location.city) ?? 0) + 1);
+    }
+
+    const estadoViaCidade = location?.city ? municipioUfMap?.get(normalizeCityName(location.city)) : null;
+    const estado = estadoViaCidade ?? location?.state ?? null;
+    if (estado) {
+      estadoInformada += 1;
+      porEstadoMap.set(estado, (porEstadoMap.get(estado) ?? 0) + 1);
     }
   }
 
@@ -217,6 +274,8 @@ async function getReservasResumo(fromStr, toStr) {
     origemInformada,
     porRegiao: toSortedList(porRegiaoMap),
     regiaoInformada,
+    porEstado: toSortedList(porEstadoMap),
+    estadoInformada,
   };
 }
 
